@@ -44,6 +44,10 @@ public:
         return x < position.x || x == position.x && y < position.y;
     }
 
+    bool operator!=(Position position) const {
+        return position.x != x || position.y != y;
+    }
+
 };
 
 int A, B, C, K;
@@ -51,9 +55,10 @@ int A, B, C, K;
 vector<Shift> possibleShifts = {{0, 1}, {-1, 0}, {0, -1}, {1, 0}};
 
 map<Position, vector<int>> needInfoAboutShifts;
-set<Position> knownPositions;
+map<Position, int> visited;
+set<Position> knownPositions, positionsNotForBonfire, wallPositions;
 
-Position currentPosition;
+Position currentPosition, startPosition;
 Shift currentShift;
 
 int allTime;
@@ -64,6 +69,7 @@ bool IsEnd() {
 
 void ReadParams() {
     cin >> currentPosition.x >> currentPosition.y;
+    startPosition = currentPosition;
     cin >> currentShift.x >> currentShift.y;
     cin >> A >> B >> C >> K;
 }
@@ -105,10 +111,10 @@ void AddNewPosition(Position position, bool isFree) {
         needInfoAboutShifts[position] = needInfoAboutPositionShifts;
 }
 
-bool MakeMove() {
+bool MakeMove(bool needMove) {
     Position newPosition = currentPosition + currentShift;
-    if (knownPositions.find(newPosition) != knownPositions.end()
-        && needInfoAboutShifts.find(newPosition) == needInfoAboutShifts.end())
+    if (!needMove && visited.find(newPosition) != visited.end()
+        || wallPositions.find(newPosition) != wallPositions.end())
         return false;
     cout << 1 << endl;
     AddTime(A);
@@ -135,24 +141,68 @@ void MakeTurn(bool isRight) {
     cin >> answer;
 }
 
-void DoAction() {
-    bool isMoved = MakeMove();
-    if (knownPositions.find(currentPosition + currentShift) == knownPositions.end()) {
-        AddNewPosition(currentPosition + currentShift, isMoved);
+void MakeBonfire() {
+    cout << 3 << endl;
+    AddTime(C);
+    string s;
+    for (int i = 0; i < 2 * K + 1; ++i) {
+        cin >> s;
+        for (int j = 0; j < 2 * K + 1; ++j) {
+            Shift shift(i - K, j - K);
+            if (s[j] == '#') {
+                wallPositions.insert(currentPosition + shift);
+                if (knownPositions.find(currentPosition + shift) == knownPositions.end()) {
+                    AddNewPosition(currentPosition + shift, false);
+                }
+                UpdateInfoAboutShifts(currentPosition + shift);
+            } else if (i != 0 && i != 2 * K && j != 0 && j != 2 * K) {
+                positionsNotForBonfire.insert(currentPosition + shift);
+            }
+        }
     }
-    UpdateInfoAboutShifts(currentPosition + currentShift);
-    if (isMoved) {
-        currentPosition += currentShift;
+}
+
+void DfsDoAction() {
+    if (positionsNotForBonfire.find(currentPosition) == positionsNotForBonfire.end()
+        && C <= (2 * K + 1) * (2 * K + 1) / 2 * A) {
+        MakeBonfire();
+    }
+    visited[currentPosition] = 1;
+    for (int i = 0; i < 4; ++i) {
+        if (startPosition != currentPosition && i == 2) {
+            MakeTurn(false);
+            continue;
+        }
+        bool isMoved = MakeMove(false);
+
+        if (knownPositions.find(currentPosition + currentShift) == knownPositions.end()) {
+            AddNewPosition(currentPosition + currentShift, isMoved);
+        }
+        UpdateInfoAboutShifts(currentPosition + currentShift);
+
+        if (isMoved) {
+            currentPosition += currentShift;
+            if (IsEnd()) {
+                return;
+            }
+            DfsDoAction();
+            if (IsEnd()) {
+                return;
+            }
+            MakeTurn(true);
+            MakeTurn(true);
+            MakeMove(true);
+            currentPosition += currentShift;
+            MakeTurn(true);
+            MakeTurn(true);
+        }
         if (IsEnd()) {
             return;
         }
-        MakeTurn(true);
-        return;
+        MakeTurn(false);
     }
-    if (IsEnd()) {
-        return;
-    }
-    MakeTurn(false);
+    visited[currentPosition] = 2;
+    return;
 }
 
 int main() {
@@ -160,7 +210,7 @@ int main() {
     needInfoAboutShifts[currentPosition] = {0, 1, 2, 3};
     knownPositions.insert(currentPosition);
     while (!IsEnd()) {
-        DoAction();
+        DfsDoAction();
     }
-    cout << allTime;
+    cout << 4 << " " << allTime;
 }
